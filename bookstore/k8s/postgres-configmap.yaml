@@ -1,0 +1,96 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-script
+  namespace: bookstore
+data:
+  init.sql: |
+    -- Initialize the bookstore database
+    
+    -- Create books table
+    CREATE TABLE IF NOT EXISTS books (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        author VARCHAR(255) NOT NULL,
+        isbn VARCHAR(13) UNIQUE,
+        price NUMERIC(10, 2) NOT NULL CHECK (price > 0),
+        quantity INTEGER NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+        description TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Create indexes for books table
+    CREATE INDEX IF NOT EXISTS idx_books_title ON books(title);
+    CREATE INDEX IF NOT EXISTS idx_books_author ON books(author);
+    CREATE INDEX IF NOT EXISTS idx_books_isbn ON books(isbn);
+
+    -- Create orders table
+    CREATE TABLE IF NOT EXISTS orders (
+        id SERIAL PRIMARY KEY,
+        book_id INTEGER NOT NULL,
+        book_title VARCHAR(255) NOT NULL,
+        customer_name VARCHAR(255) NOT NULL,
+        customer_email VARCHAR(255) NOT NULL,
+        quantity INTEGER NOT NULL CHECK (quantity > 0),
+        unit_price NUMERIC(10, 2) NOT NULL CHECK (unit_price > 0),
+        total_price NUMERIC(10, 2) NOT NULL CHECK (total_price > 0),
+        status VARCHAR(50) NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT fk_book FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE RESTRICT
+    );
+
+    -- Create indexes for orders table
+    CREATE INDEX IF NOT EXISTS idx_orders_book_id ON orders(book_id);
+    CREATE INDEX IF NOT EXISTS idx_orders_customer_email ON orders(customer_email);
+    CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+    CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC);
+
+    -- Insert sample books data
+    INSERT INTO books (title, author, isbn, price, quantity, description) VALUES
+    ('Clean Code', 'Robert C. Martin', '9780132350884', 44.99, 15, 'A Handbook of Agile Software Craftsmanship'),
+    ('The Pragmatic Programmer', 'Andrew Hunt and David Thomas', '9780135957059', 49.99, 10, 'Your Journey to Mastery'),
+    ('Design Patterns', 'Erich Gamma, Richard Helm, Ralph Johnson, John Vlissides', '9780201633610', 54.99, 8, 'Elements of Reusable Object-Oriented Software'),
+    ('Refactoring', 'Martin Fowler', '9780134757599', 47.99, 12, 'Improving the Design of Existing Code'),
+    ('Introduction to Algorithms', 'Thomas H. Cormen', '9780262033848', 89.99, 5, 'Comprehensive guide to algorithms'),
+    ('Python Crash Course', 'Eric Matthes', '9781593279288', 39.99, 20, 'A Hands-On, Project-Based Introduction'),
+    ('JavaScript: The Good Parts', 'Douglas Crockford', '9780596517748', 29.99, 18, 'Unearthing the Excellence in JavaScript'),
+    ('Head First Design Patterns', 'Eric Freeman and Elisabeth Robson', '9780596007126', 44.99, 10, 'A Brain-Friendly Guide'),
+    ('The DevOps Handbook', 'Gene Kim, Jez Humble', '9781942788003', 42.99, 7, 'How to Create World-Class Agility'),
+    ('Kubernetes in Action', 'Marko Luksa', '9781617293726', 59.99, 6, 'Learn Kubernetes from the ground up')
+    ON CONFLICT (isbn) DO NOTHING;
+
+    -- Create function to update updated_at timestamp
+    CREATE OR REPLACE FUNCTION update_updated_at_column()
+    RETURNS TRIGGER AS $$
+    BEGIN
+        NEW.updated_at = CURRENT_TIMESTAMP;
+        RETURN NEW;
+    END;
+    $$ language 'plpgsql';
+
+    -- Create triggers for updated_at
+    DROP TRIGGER IF EXISTS update_books_updated_at ON books;
+    CREATE TRIGGER update_books_updated_at
+        BEFORE UPDATE ON books
+        FOR EACH ROW
+        EXECUTE FUNCTION update_updated_at_column();
+
+    DROP TRIGGER IF EXISTS update_orders_updated_at ON orders;
+    CREATE TRIGGER update_orders_updated_at
+        BEFORE UPDATE ON orders
+        FOR EACH ROW
+        EXECUTE FUNCTION update_updated_at_column();
+
+    -- Grant permissions
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO bookstore;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO bookstore;
+    GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO bookstore;
+
+    -- Show table information
+    \dt
+    
+    -- Show sample data
+    SELECT COUNT(*) as total_books FROM books;
+    SELECT COUNT(*) as total_orders FROM orders;

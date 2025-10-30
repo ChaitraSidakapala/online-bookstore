@@ -1,0 +1,46 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bookstore-ingress
+  namespace: bookstore
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: bookstore.local
+    http:
+      paths:
+      - path: /catalog(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: catalog-service
+            port:
+              number: 8000
+      - path: /orders(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: order-service
+            port:
+              number: 8000
+  # Alternative: Use without host (for local development)
+  - http:
+      paths:
+      - path: /catalog(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: catalog-service
+            port:
+              number: 8000
+      - path: /orders(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: order-service
+            port:
+              number: 8000
